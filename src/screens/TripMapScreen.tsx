@@ -26,6 +26,8 @@ import QuickStatusModal from '@/components/QuickStatusModal';
 import StatusService, { StatusType } from '@/services/statusService';
 import { tripAPI, emergencyAPI } from '@/services/api';
 import WebSocketService from '@/services/websocketService';
+import BackButton from '../components/Buttons/BackButton';
+import { useLayoutEffect } from 'react';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,12 +37,20 @@ const TripMapScreen: React.FC = () => {
   const navigation = useNavigation<TripMapScreenNavigationProp>();
   const route = useRoute<RouteProp<RootStackParamList, 'TripMap'>>();
   const { tripId } = route.params;
-  const { currentTrip, memberLocations, leaveTrip, setUserStatus, getUserStatus } = useTrip();
+  const { currentTrip, memberLocations, leaveTrip, setUserStatus, getUserStatus, openTrip } = useTrip();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [showStopModal, setShowStopModal] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => <BackButton fallbackRoute="Home" />,
+      headerTitle: '',    
+      headerShown: true,
+    });
+  }, [navigation]);
 
   useEffect(() => {
     const initializeTrip = async () => {
@@ -48,8 +58,12 @@ const TripMapScreen: React.FC = () => {
         setIsLoading(true);
 
         // Load trip data from API if not already loaded
-        if (!currentTrip) {
+        if (!currentTrip || currentTrip.id !== tripId) {
           try {
+            openTrip(tripId).catch(err => {
+              console.error('Error', err?.message ?? 'Failed to load trip');
+              navigation.goBack();
+            });
             const response = await tripAPI.getUserTrips();
             if (response.success && response.data) {
               // Find the specific trip by ID
@@ -163,7 +177,7 @@ const TripMapScreen: React.FC = () => {
           text: 'Leave',
           style: 'destructive',
           onPress: async () => {
-            await leaveTrip();
+            await leaveTrip(tripId);
             navigation.navigate('Home');
           },
         },

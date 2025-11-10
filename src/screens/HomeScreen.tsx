@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '@/types/navigation';
 import { useAuth } from '@/stores/AuthStore';
@@ -17,86 +19,91 @@ import { tripAPI } from '@/services/api';
 
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
 
+// ...imports unchanged
+
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const { user, logout } = useAuth();
-  const { currentTrip, createTrip, joinTrip } = useTrip();
-  const [recentTrips, setRecentTrips] = useState<Trip[]>([]);
+  const { currentTrip, createTrip, joinTrip, openTrip } = useTrip();
+  const [activeTrips, setActiveTrips] = useState<Trip[]>([]);
   const [isLoadingTrips, setIsLoadingTrips] = useState(false);
   const [tripsError, setTripsError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const handleCreateTrip = () => {
-    navigation.navigate('NewTrip');
-  };
+  const handleCreateTrip = () => navigation.navigate('NewTrip');
+  const handleJoinTrip   = () => navigation.navigate('JoinTrip');
+  // const handleViewTrip   = (trip: Trip) => navigation.navigate('TripMap', { tripId: trip.id });
 
-  const handleJoinTrip = () => {
-    navigation.navigate('JoinTrip');
-  };
-
-  const handleViewTrip = () => {
-    if (currentTrip) {
-      navigation.navigate('TripMap', { tripId: currentTrip.id });
+  const handleViewTrip = async (trip: Trip) => {
+    try {
+      await openTrip(trip.id);      // set the selected trip as current
+      navigation.navigate('TripMap', { tripId: trip.id });
+    } catch (e) {
+      console.error('Open trip failed', (e as any)?.message ?? 'Please try again');
     }
   };
 
   const handleLogout = async () => {
+    try { await logout(); navigation.navigate('Login'); } catch (e) { console.error(e); }
+  };
+
+  const loadActiveTrips = async () => {
+    if (!user) return;
+    setTripsError(null);
     try {
-      await logout();
-      navigation.navigate('Login');
-    } catch (error) {
-      console.error('Logout error:', error);
+      const resp = await tripAPI.getUserTrips();
+
+      if (resp?.success && Array.isArray(resp.data)) {
+        const userId = user.id; // your app uses string member IDs now
+        const visible = resp.data.filter(t =>
+          t.status === 'active' && t.members?.some(m => m.userId === userId && m.isActive)
+        );
+        setActiveTrips(visible);
+      } else {
+        setTripsError('Failed to load active trips');
+      }
+    } catch (e) {
+      console.error('Error loading active trips:', e);
+      setTripsError('Failed to load active trips');
     }
   };
 
-  /** Disabled for now - recent trips loaded from API
-  // Load recent trips when component mounts
+
   useEffect(() => {
-    const loadRecentTrips = async () => {
-      if (!user) return;
+    setIsLoadingTrips(true);
+    loadActiveTrips().finally(() => setIsLoadingTrips(false));
+  }, [user]);
 
-      setIsLoadingTrips(true);
-      setTripsError(null);
+  useFocusEffect(
+    useCallback(() => {
+      loadActiveTrips();
+    }, [user?.id]) // re-run if the signed-in user changes
+  );
 
-      try {
-        const response = await tripAPI.getUserTrips();
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadActiveTrips();
+    setRefreshing(false);
+  };
 
-        if (response.success && response.data) {
-          // Filter out current trip and limit to 5 recent trips
-          const filteredTrips = response.data
-            .filter(trip => !currentTrip || trip.id !== currentTrip.id)
-            .slice(0, 5);
-          setRecentTrips(filteredTrips);
-        } else {
-          setTripsError('Failed to load recent trips');
-        }
-      } catch (error) {
-        console.error('Error loading recent trips:', error);
-        setTripsError('Failed to load recent trips');
-      } finally {
-        setIsLoadingTrips(false);
-      }
-    };
-
-    loadRecentTrips();
-  }, [user, currentTrip]); 
-  */
-
-  const renderTripItem = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.tripItem}>
-      <View style={styles.tripInfo}>
-        <Text style={styles.tripName}>{item.name}</Text>
-        <Text style={styles.tripCode}>Code: {item.groupCode}</Text>
-        <Text style={styles.tripMembers}>{item.members.length} members</Text>
+  const renderActiveTripItem = ({ item }: { item: Trip }) => (
+    <TouchableOpacity style={styles.currentTripCard} onPress={() => handleViewTrip(item)}>
+      <View style={styles.tripHeader}>
+        <Text style={styles.currentTripName}>{item.name}</Text>
+        <View style={styles.tripStatus}>
+          <View style={[styles.statusDot, { backgroundColor: '#4CAF50' }]} />
+          <Text style={styles.statusText}>Active</Text>
+        </View>
       </View>
-      <TouchableOpacity style={styles.joinButton}>
-        <Text style={styles.joinButtonText}>Join</Text>
-      </TouchableOpacity>
+      <Text style={styles.tripCode}>Code: {item.groupCode}</Text>
+      <Text style={styles.tripMembers}>{item.members.filter(m => m.isActive).length} members</Text>
+      <Text style={styles.viewTripText}>Tap to view trip →</Text>
     </TouchableOpacity>
   );
 
-  return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
+  const StartNewTripHeader = (
+    <>
+      {/* Header (greeting / logout) */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Hello, {user?.name}!</Text>
@@ -107,50 +114,104 @@ const HomeScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Current Trip Section */}
-      {currentTrip ? (
-        <View style={styles.currentTripSection}>
-          <Text style={styles.sectionTitle}>Current Trip</Text>
-          <TouchableOpacity style={styles.currentTripCard} onPress={handleViewTrip}>
-            <View style={styles.tripHeader}>
-              <Text style={styles.currentTripName}>{currentTrip.name}</Text>
-              <View style={styles.tripStatus}>
-                <View style={[styles.statusDot, { backgroundColor: '#4CAF50' }]} />
-                <Text style={styles.statusText}>Active</Text>
+      {/* Buttons live in the list header so they scroll too */}
+      <View style={styles.noTripSection}>
+        <Text style={styles.sectionTitle}>Start a New Trip</Text>
+
+        <TouchableOpacity style={styles.primaryActionButton} onPress={handleCreateTrip}>
+          <Text style={styles.primaryActionIcon}>🚗</Text>
+          <View style={styles.actionContent}>
+            <Text style={styles.primaryActionTitle}>Create New Trip</Text>
+            <Text style={styles.primaryActionSubtitle}>
+              Set up a trip and share the code with friends
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.secondaryActionButton} onPress={handleJoinTrip}>
+          <Text style={styles.secondaryActionIcon}>👥</Text>
+          <View style={styles.actionContent}>
+            <Text style={styles.secondaryActionTitle}>Join Existing Trip</Text>
+            <Text style={styles.secondaryActionSubtitle}>
+              Enter a trip code to join your friends
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Active Trips section title only if there are trips */}
+        {activeTrips.length > 0 && (
+          <View style={{ paddingHorizontal: 24, paddingTop: 24 }}>
+            <Text style={styles.sectionTitle}>Active Trips</Text>
+          </View>
+        )}
+      </View>
+    </>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <FlatList
+        data={activeTrips}
+        renderItem={renderActiveTripItem}
+        keyExtractor={(item) => item.id}
+
+        contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 24 }}
+
+        ListHeaderComponent={
+          <>
+            {/* Header (greeting / logout) */}
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.greeting}>Hello, {user?.name}!</Text>
+                <Text style={styles.subtitle}>Ready for your next adventure?</Text>
               </View>
+              <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+                <Text style={styles.logoutText}>Logout</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.tripCode}>Code: {currentTrip.groupCode}</Text>
-            <Text style={styles.tripMembers}>{currentTrip.members.length} members</Text>
-            <Text style={styles.viewTripText}>Tap to view trip →</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        /* No Trip Actions */
-        <View style={styles.noTripSection}>
-          <Text style={styles.sectionTitle}>Start a New Trip</Text>
 
-          <TouchableOpacity style={styles.primaryActionButton} onPress={handleCreateTrip}>
-            <Text style={styles.primaryActionIcon}>🚗</Text>
-            <View style={styles.actionContent}>
-              <Text style={styles.primaryActionTitle}>Create New Trip</Text>
-              <Text style={styles.primaryActionSubtitle}>
-                Set up a trip and share the code with friends
-              </Text>
+            {/* Start section */}
+            <View style={{ paddingTop: 24 }}>
+              <Text style={styles.sectionTitle}>Start a New Trip</Text>
+
+              <TouchableOpacity style={styles.primaryActionButton} onPress={handleCreateTrip}>
+                <Text style={styles.primaryActionIcon}>🚗</Text>
+                <View style={styles.actionContent}>
+                  <Text style={styles.primaryActionTitle}>Create New Trip</Text>
+                  <Text style={styles.primaryActionSubtitle}>
+                    Set up a trip and share the code with friends
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.secondaryActionButton} onPress={handleJoinTrip}>
+                <Text style={styles.secondaryActionIcon}>👥</Text>
+                <View style={styles.actionContent}>
+                  <Text style={styles.secondaryActionTitle}>Join Existing Trip</Text>
+                  <Text style={styles.secondaryActionSubtitle}>
+                    Enter a trip code to join your friends
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Active Trips title if there are items */}
+              {activeTrips.length > 0 && (
+                <View style={{ paddingTop: 24 }}>
+                  <Text style={styles.sectionTitle}>Active Trips</Text>
+                </View>
+              )}
             </View>
-          </TouchableOpacity>
+          </>
+        }
 
-          <TouchableOpacity style={styles.secondaryActionButton} onPress={handleJoinTrip}>
-            <Text style={styles.secondaryActionIcon}>👥</Text>
-            <View style={styles.actionContent}>
-              <Text style={styles.secondaryActionTitle}>Join Existing Trip</Text>
-              <Text style={styles.secondaryActionSubtitle}>
-                Enter a trip code to join your friends
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
+        ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
 
+        ListFooterComponent={<View style={{ height: 8 }} />}
+
+        showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+      />
       
       {/* Recent Trips Section */}
       {/* <View style={styles.recentTripsSection}>

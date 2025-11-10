@@ -32,6 +32,7 @@ export default function App() {
               initialRouteName="Welcome"
               screenOptions={{
                 headerShown: false,
+                gestureEnabled: false,
               }}
             >
               <Stack.Screen name="Welcome" component={WelcomeScreen} />

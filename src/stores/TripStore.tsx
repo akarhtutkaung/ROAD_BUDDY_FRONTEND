@@ -78,7 +78,7 @@ type TripAction =
 interface TripContextType extends TripState {
   createTrip: (name: string, destination?: { name: string; latitude: number; longitude: number }) => Promise<Trip>;
   joinTrip: (tripCode: string) => Promise<Trip>;
-  leaveTrip: () => Promise<void>;
+  leaveTrip: (tripId: string) => Promise<void>;
   updateLocation: (location: Location) => void;
   suggestStop: (stop: Omit<TripStop, 'stopId' | 'votes' | 'arrivals' | 'ready'>) => void;
   voteOnStop: (stopId: string, vote: 'yes' | 'no') => void;
@@ -86,6 +86,7 @@ interface TripContextType extends TripState {
   markReady: (stopId: string) => void;
   setUserStatus: (status: StatusType, message?: string) => void;
   getUserStatus: (userId: string) => any;
+  openTrip: (tripId: string) => Promise<Trip>;
 }
 
 const TripContext = createContext<TripContextType | undefined>(undefined);
@@ -235,9 +236,20 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const leaveTrip = async (): Promise<void> => {
-    dispatch({ type: 'SET_TRIP', payload: null });
-    // TODO: Notify server that user left the trip
+  const leaveTrip = async (tripId: string): Promise<void> => {
+    try {
+      const response = await tripAPI.leaveTrip(tripId);
+      if (response?.success) {
+        dispatch({ type: 'SET_TRIP', payload: null });
+        return;
+      } else {
+        throw new Error(response.error?.message || 'Failed to leave trip');
+      }
+    } catch (error: any) {
+      console.error('Error leaving trip:', error);
+      dispatch({ type: 'SET_ERROR', payload: error.message || 'Failed to leave trip' });
+      throw error;
+    }
   };
 
   const updateLocation = async (location: Location) => {
@@ -328,6 +340,33 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Try to set a specific trip as current by id
+  const openTrip = async (tripId: string): Promise<Trip> => {
+    if (!user) throw new Error('User not authenticated');
+    dispatch({ type: 'SET_LOADING', payload: true });
+    try {
+      // If you have a dedicated endpoint, prefer it:
+      // const resp = await tripAPI.getTripById(tripId);
+
+      // Otherwise re-use getUserTrips and pick the one we want:
+      const resp = await tripAPI.getUserTrips();
+      if (resp?.success && Array.isArray(resp.data)) {
+        const trip = resp.data.find((t: Trip) => t.id === tripId);
+        if (!trip) throw new Error('Trip not found or you are not a member');
+
+        dispatch({ type: 'SET_TRIP', payload: trip });
+        return trip;
+      }
+      throw new Error(resp?.error?.message || 'Failed to load trips');
+    } catch (err: any) {
+      dispatch({ type: 'SET_ERROR', payload: err.message || 'Failed to open trip' });
+      throw err;
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+
   const value: TripContextType = {
     ...state,
     createTrip,
@@ -340,6 +379,7 @@ export const TripProvider: React.FC<{ children: React.ReactNode }> = ({ children
     markReady,
     setUserStatus,
     getUserStatus,
+    openTrip,
   };
 
   return <TripContext.Provider value={value}>{children}</TripContext.Provider>;
