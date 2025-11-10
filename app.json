@@ -1,0 +1,76 @@
+{
+  "expo": {
+    "name": "Road Buddy",
+    "slug": "road-buddy",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.roadbuddy.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app needs access to location to track your position and share it with trip members.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to location in the background to continue tracking during trips even when the app is closed.",
+        "NSCameraUsageDescription": "This app needs access to camera to take photos during trips.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to photo library to select photos for your profile.",
+        "NSMicrophoneUsageDescription": "This app needs access to microphone for voice messages."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "CALL_PHONE"
+      ],
+      "package": "com.roadbuddy.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Road Buddy to use your location to track your position and share it with trip members."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#007AFF"
+        }
+      ]
+    ],
+    "extra": {
+      "apiBaseUrl": "${API_BASE_URL}",
+      "websocketUrl": "${WEBSOCKET_URL}",
+      "auth0Domain": "${AUTH0_DOMAIN}",
+      "auth0ClientId": "${AUTH0_CLIENT_ID}",
+      "googleClientId": "${GOOGLE_CLIENT_ID}",
+      "appleServiceId": "${APPLE_SERVICE_ID}",
+      "googleMapsApiKey": "${GOOGLE_MAPS_API_KEY}",
+      "enableBackgroundLocation": true,
+      "enableNotifications": true,
+      "enableVoiceGuidance": true
+    }
+  }
+}
