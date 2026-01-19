@@ -131,25 +131,25 @@ const StopSuggestionModal: React.FC<StopSuggestionModalProps> = ({
     >
       <View style={styles.placeInfo}>
         <Text style={styles.placeName}>{place.name}</Text>
-        {place.vicinity && (
+        {place.vicinity ? (
           <Text style={styles.placeVicinity}>{place.vicinity}</Text>
-        )}
+        ) : null}
         <View style={styles.placeDetails}>
-          {place.distance && (
+          {typeof place.distance === 'number' ? (
             <Text style={styles.placeDistance}>
               📍 {place.distance.toFixed(1)} mi
             </Text>
-          )}
-          {place.rating && (
+          ) : null}
+          {typeof place.rating === 'number' ? (
             <Text style={styles.placeRating}>
               ⭐ {place.rating.toFixed(1)}
             </Text>
-          )}
-          {place.duration && (
+          ) : null}
+          {typeof place.duration === 'number' ? (
             <Text style={styles.placeDuration}>
               🚗 {Math.round(place.duration)} min
             </Text>
-          )}
+          ) : null}
         </View>
       </View>
       <TouchableOpacity

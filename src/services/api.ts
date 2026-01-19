@@ -433,4 +433,21 @@ export const placesAPI = {
   },
 };
 
+export const stopsAPI = {
+  suggestStop: async (tripId: string, data: { place: { name: string; location: any }; urgency?: string }): Promise<ApiResponse<any>> => {
+    const response = await api.post(`/trips/${tripId}/stops/suggest`, data);
+    return response.data;
+  },
+
+  voteStop: async (tripId: string, data: { stopId: string; vote: 'yes' | 'no' }): Promise<ApiResponse<any>> => {
+    const response = await api.post(`/trips/${tripId}/stops/vote`, data);
+    return response.data;
+  },
+
+  markReady: async (tripId: string, data: { stopId: string }): Promise<ApiResponse<any>> => {
+    const response = await api.post(`/trips/${tripId}/stops/ready`, data);
+    return response.data;
+  },
+};
+
 export default api;

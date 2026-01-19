@@ -12,10 +12,10 @@ export interface BaseUser {
 }
 
 // User data returned from auth endpoints (partial user data)
-export interface AuthUser extends BaseUser {}
+export interface AuthUser extends BaseUser { }
 
 // Full user data with all properties
-export interface User extends BaseUser, ApiUser {}
+export interface User extends BaseUser, ApiUser { }
 
 interface AuthState {
   user: User | null;
@@ -133,27 +133,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const response = await authAPI.register(data);
 
-      if (response.success) {
-        // For now, since backend returns placeholder response,
-        // create a basic user object from the registration data
-        const user: User = {
-          id: 'temp-id', // Backend would provide real ID
-          email: data.email,
-          name: data.name,
-          phoneNumber: data.phoneNumber,
-          settings: {
-            notificationsEnabled: true,
-            voiceGuidance: true,
-            units: 'imperial',
-          },
-          createdAt: new Date().toISOString(),
-          lastActive: new Date().toISOString(),
-        };
+      if (response.success && response.data) {
+        const { accessToken, refreshToken, user } = response.data;
 
-        // Store user data (no tokens since backend is placeholder)
-        await AsyncStorage.setItem('user', JSON.stringify(user));
+        // Store tokens and user data
+        await AsyncStorage.multiSet([
+          ['accessToken', accessToken],
+          ['refreshToken', refreshToken],
+          ['user', JSON.stringify(user)],
+        ]);
 
-        dispatch({ type: 'SET_USER', payload: user });
+        dispatch({ type: 'SET_USER', payload: user as User });
       } else {
         throw new Error(response.error?.message || 'Registration failed');
       }

@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+import * as TaskManager from 'expo-task-manager';
 import { Location as LocationType } from '@/stores/TripStore';
 import { locationAPI } from './api';
 
@@ -166,7 +167,25 @@ export class LocationService {
   }
 }
 
-// Background location task would be defined here when expo-task-manager is available
-// For now, background location tracking is handled by the foreground service notification
+// Background location task definition
+// Ensure TaskManager is defined (it might mock in some dev environments)
+if (TaskManager && TaskManager.defineTask) {
+  TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
+    if (error) {
+      console.error('Background location task error:', error);
+      return;
+    }
+
+    if (data) {
+      const { locations } = data as { locations: Location.LocationObject[] };
+      // Process locations using the singleton instance logic
+      // Note: In background, we might want to store locally or send to API directly
+      // For now, we'll try to use the service instance if initialized, or just log
+      console.log('Received background locations:', locations.length);
+
+      // In a real app, you would efficiently batch these or wake up the app to send
+    }
+  });
+}
 
 export default LocationService;
